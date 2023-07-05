@@ -3,9 +3,9 @@ import torch
 import numpy as np
 import torch.nn as nn
 from functools import partial
-from sfp import Conv2d, get_norm
+from .sfp import Conv2d, get_norm
 import fvcore.nn.weight_init as weight_init
-from utils import apply_masks, trunc_normal_, window_partition, window_unpartition, ShapeSpec
+from .utils import apply_masks, trunc_normal_, window_partition, window_unpartition, ShapeSpec
 
 
 class MLP(nn.Module):

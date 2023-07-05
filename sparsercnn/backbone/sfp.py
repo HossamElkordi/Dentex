@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import BatchNorm2d
 from torch.nn import functional as F
+from sparsercnn.backbone.utils import ShapeSpec
 
 
 class LastLevelMaxPool(nn.Module):
@@ -313,3 +314,10 @@ class SimpleFeaturePyramid(nn.Module):
             results.extend(self.top_block(top_block_in_feature))
         assert len(self._out_features) == len(results)
         return {f: res for f, res in zip(self._out_features, results)}
+    def output_shape(self):
+        return {
+            name: ShapeSpec(
+                channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
+            )
+            for name in self._out_features
+        }

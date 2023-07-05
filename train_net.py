@@ -8,16 +8,16 @@ SparseRCNN Training Script.
 
 This script is a simplified version of the training script in detectron2/tools.
 """
-
+from sparsercnn.backbone import feature_extractor
 import os
 import itertools
 import time
 from typing import Any, Dict, List, Set
 import logging
 from collections import OrderedDict
-
+import json
 import torch
-
+from detectron2.data import DatasetCatalog
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
@@ -28,7 +28,7 @@ from detectron2.evaluation import COCOEvaluator, verify_results
 from detectron2.solver.build import maybe_add_gradient_clipping
 
 from sparsercnn import SparseRCNNDatasetMapper, add_sparsercnn_config, SparseRCNNWithTTA
-
+from sparsercnn.config import add_dataset_config
 
 class Trainer(DefaultTrainer):
 #     """
@@ -138,6 +138,7 @@ def setup(args):
     """
     cfg = get_cfg()
     add_sparsercnn_config(cfg)
+    add_dataset_config(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
@@ -162,9 +163,16 @@ def main(args):
     trainer.resume_or_load(resume=args.resume)
     return trainer.train()
 
+def my_dataset_function():
+  j=json.load(open("/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant/quadrant_detectron_format.json"))
+  for i in j:
+    i["file_name"]=os.path.join("/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant/xrays",i["file_name"])
+  return j
 
 if __name__ == "__main__":
+    DatasetCatalog.register("Quadrant_train", my_dataset_function)
     args = default_argument_parser().parse_args()
+    
     print("Command Line Args:", args)
     launch(
         main,

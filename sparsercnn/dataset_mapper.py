@@ -37,7 +37,7 @@ def build_transform_gen(cfg, is_train):
     tfm_gens = []
     if is_train:
         tfm_gens.append(T.RandomFlip())
-    tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+    tfm_gens.append(T.Resize((min_size[0],min_size[0])))
     if is_train:
         logger.info("TransformGens used in training: " + str(tfm_gens))
     return tfm_gens

@@ -6,12 +6,7 @@ MODEL:
   DEVICE: "cpu"
   BACKBONE:
     NAME: "FeatureExtractor"
-  VIT:
-    OUT_FEATURES: "last_feat"
-  SFP:
-    OUT_FEATURES: ["p2", "p3", "p4", "p5", "p6"]
-    OUT_CHANNELS: 256
-    OUT_SCALES: [4.0, 2.0, 1.0, 0.5]
+  WEIGHTS: "/content/drive/MyDrive/dentext/target_encoder.pth.tar"
   ROI_HEADS:
     IN_FEATURES: ["p2", "p3", "p4", "p5", "p6"]
   ROI_BOX_HEAD:
@@ -19,7 +14,7 @@ MODEL:
     POOLER_RESOLUTION: 7
     POOLER_SAMPLING_RATIO: 2
 SOLVER:
-  IMS_PER_BATCH: 16
+  IMS_PER_BATCH: 2
   BASE_LR: 0.000025
   STEPS: (210000, 250000)
   MAX_ITER: 270000
@@ -46,4 +41,6 @@ TEST:
 DATALOADER:
   FILTER_EMPTY_ANNOTATIONS: False
   NUM_WORKERS: 4
+DATASETS:
+  TRAIN: Quadrant_train
 VERSION: 2

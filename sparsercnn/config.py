@@ -6,14 +6,17 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 from detectron2.config import CfgNode as CN
 
+def add_dataset_config(cfg):
+  cfg.DATASETS=CN()
+  cfg.DATASETS.TRAIN= "Quadrant_train"
 
 def add_sparsercnn_config(cfg):
     """
     Add config for SparseRCNN.
     """
     cfg.MODEL.SparseRCNN = CN()
-    cfg.MODEL.SparseRCNN.NUM_CLASSES = 80
-    cfg.MODEL.SparseRCNN.NUM_PROPOSALS = 300
+    cfg.MODEL.SparseRCNN.NUM_CLASSES = 4
+    cfg.MODEL.SparseRCNN.NUM_PROPOSALS = 4
 
     # RCNN Head.
     cfg.MODEL.SparseRCNN.NHEADS = 8

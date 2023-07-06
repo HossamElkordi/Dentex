@@ -21,34 +21,19 @@ from detectron2.data import DatasetCatalog
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
-from detectron2.modeling import build_backbone, build_model
-from detectron2.data import MetadataCatalog, build_detection_train_loader
+from detectron2.data import MetadataCatalog, build_detection_train_loader, build_detection_test_loader
 from detectron2.engine import AutogradProfiler, DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import COCOEvaluator, verify_results
 from detectron2.solver.build import maybe_add_gradient_clipping
 
 from sparsercnn import SparseRCNNDatasetMapper, add_sparsercnn_config, SparseRCNNWithTTA
 from sparsercnn.config import add_dataset_config
+from sparsercnn.custom_hooks import LossEvalHook
 
 class Trainer(DefaultTrainer):
 #     """
 #     Extension of the Trainer class adapted to SparseRCNN.
 #     """
-
-    # @classmethod
-    # def build_model(cls, cfg):
-    #     """
-    #     Returns:
-    #         torch.nn.Module:
-    #     It now calls :func:`detectron2.modeling.build_model`.
-    #     Overwrite it if you'd like a different model.
-    #     """
-    #     model = build_model(cfg)
-    #     logger = logging.getLogger(__name__)
-    #     logger.info("Model:\n{}".format(model))
-    #     # setup EMA
-    #     may_build_model_ema(cfg, model)
-    #     return model
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -61,6 +46,15 @@ class Trainer(DefaultTrainer):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
+    
+    def build_hooks(self):
+        hooks = super().build_hooks()
+        hooks.insert(-1,LossEvalHook(
+            self.cfg.TEST.EVAL_PERIOD,
+            self.model,
+            build_detection_test_loader(self.cfg, SparseRCNNDatasetMapper(self.cfg, is_train=False))
+        ))
+        return hooks
 
     @classmethod
     def build_train_loader(cls, cfg):
@@ -163,14 +157,27 @@ def main(args):
     trainer.resume_or_load(resume=args.resume)
     return trainer.train()
 
-def my_dataset_function():
-  j=json.load(open("/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant/quadrant_detectron_format.json"))
+def load_train_data():
+  dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
+  images_dir = os.path.join(dir, 'xrays')
+  train_file = 'quadrant_detectron_format_train'
+  j = json.load(open(os.path.join(dir, train_file)))
   for i in j:
-    i["file_name"]=os.path.join("/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant/xrays",i["file_name"])
+    i["file_name"] = os.path.join(images_dir, i["file_name"])
+  return j
+
+def load_val_data():
+  dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
+  images_dir = os.path.join(dir, 'xrays')
+  val_file = 'quadrant_detectron_format_val'
+  j = json.load(open(os.path.join(dir, val_file)))
+  for i in j:
+    i["file_name"] = os.path.join(images_dir, i["file_name"])
   return j
 
 if __name__ == "__main__":
-    DatasetCatalog.register("Quadrant_train", my_dataset_function)
+    DatasetCatalog.register("Quadrant_train", load_train_data)
+    DatasetCatalog.register("Quadrant_val", load_val_data)
     args = default_argument_parser().parse_args()
     
     print("Command Line Args:", args)

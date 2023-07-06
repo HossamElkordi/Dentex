@@ -9,6 +9,7 @@ from detectron2.config import CfgNode as CN
 def add_dataset_config(cfg):
   cfg.DATASETS=CN()
   cfg.DATASETS.TRAIN= "Quadrant_train"
+  cfg.DATASETS.TRAIN= "Quadrant_val"
 
 def add_sparsercnn_config(cfg):
     """
@@ -60,3 +61,5 @@ def add_sparsercnn_config(cfg):
                                  [0, 256], [0, 192],
                                  [0, 192], [0, 96],
                                  [0, 10000])
+    
+    cfg.OUTPUT_DIR = "/content/drive/MyDrive/dentex/quadrant_outputs"

@@ -1,23 +1,30 @@
 MODEL:
   META_ARCHITECTURE: "SparseRCNN"
-  WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
-  PIXEL_MEAN: [123.675, 116.280, 103.530]
-  PIXEL_STD: [58.395, 57.120, 57.375]
-  DEVICE: "cpu"
+  PIXEL_MEAN: [113.3451167, 113.3451167, 113.3451167]
+  PIXEL_STD: [61.77659969, 61.77659969, 61.77659969]
+  DEVICE: "cuda"
+  WEIGHTS: "/content/drive/MyDrive/dentex/quadrant_output/best_model"
   BACKBONE:
     NAME: "FeatureExtractor"
-  WEIGHTS: "/content/drive/MyDrive/dentext/target_encoder.pth.tar"
   ROI_HEADS:
     IN_FEATURES: ["p2", "p3", "p4", "p5", "p6"]
   ROI_BOX_HEAD:
     POOLER_TYPE: "ROIAlignV2"
     POOLER_RESOLUTION: 7
     POOLER_SAMPLING_RATIO: 2
+  SparseRCNN:
+    NUM_PROPOSALS: 4
+    NUM_CLASSES: 4
 SOLVER:
+  BASE_LR: 0.001
   IMS_PER_BATCH: 2
-  BASE_LR: 0.000025
-  STEPS: (210000, 250000)
-  MAX_ITER: 270000
+  STEPS: []
+  MAX_ITER: 31150                # num_epochs * steps_per_epoch
+  CHECKPOINT_PERIOD: 3210        # each 10 epochs
+  # IMS_PER_BATCH: 2
+  # BASE_LR: 0.001
+  # STEPS: (210000, 250000)
+  # MAX_ITER: 270000
   WARMUP_FACTOR: 0.01
   WARMUP_ITERS: 1000
   WEIGHT_DECAY: 0.0001
@@ -30,17 +37,23 @@ SOLVER:
     NORM_TYPE: 2.0
 SEED: 40244023
 INPUT:
-  MIN_SIZE_TRAIN: (448, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+  MIN_SIZE_TRAIN: (448,)
+  MAX_SIZE_TRAIN: 448
+  MIN_SIZE_TEST: 448
+  MAX_SIZE_TEST: 448
   CROP:
     ENABLED: False
     TYPE: "absolute_range"
     SIZE: (384, 600)
   FORMAT: "RGB"
 TEST:
-  EVAL_PERIOD: 7330
+  EVAL_PERIOD: 312
+  # EVAL_PERIOD: 100
 DATALOADER:
   FILTER_EMPTY_ANNOTATIONS: False
-  NUM_WORKERS: 4
+  NUM_WORKERS: 2
 DATASETS:
-  TRAIN: Quadrant_train
+  TRAIN: ("Quadrant_train",) # 623 images --> 312 steps per epochs for batch_size 2
+  TEST:  ("Quadrant_val",) # 70 images
 VERSION: 2
+OUTPUT_DIR: "/content/drive/MyDrive/dentex/quadrant_outputs"

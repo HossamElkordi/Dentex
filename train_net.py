@@ -160,7 +160,7 @@ def main(args):
 def load_train_data():
   dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
   images_dir = os.path.join(dir, 'xrays')
-  train_file = 'quadrant_detectron_format_train'
+  train_file = 'quadrant_detectron_format_train.json'
   j = json.load(open(os.path.join(dir, train_file)))
   for i in j:
     i["file_name"] = os.path.join(images_dir, i["file_name"])
@@ -169,7 +169,7 @@ def load_train_data():
 def load_val_data():
   dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
   images_dir = os.path.join(dir, 'xrays')
-  val_file = 'quadrant_detectron_format_val'
+  val_file = 'quadrant_detectron_format_val.json'
   j = json.load(open(os.path.join(dir, val_file)))
   for i in j:
     i["file_name"] = os.path.join(images_dir, i["file_name"])

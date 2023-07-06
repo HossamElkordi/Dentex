@@ -12,7 +12,7 @@ class FeatureExtractor(Backbone):
 
         super().__init__()
         self.vit_model = vit_base(img_size=[448])
-        self.load_vit_model(path=cfg.MODEL.WEIGHTS, device=cfg.MODEL.DEVICE)
+        self.load_vit_model(path='/content/drive/MyDrive/target_encoder.pth.tar', device=cfg.MODEL.DEVICE)
         self.model_backbone = SimpleFeaturePyramid(
             net=self.vit_model,
             in_feature="last_feat",
@@ -24,7 +24,6 @@ class FeatureExtractor(Backbone):
         )
 
     def forward(self, image):
-        print(image.shape)
         return self.model_backbone(image)
 
     def load_vit_model(self, path, device):

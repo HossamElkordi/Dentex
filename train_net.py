@@ -52,7 +52,7 @@ class Trainer(DefaultTrainer):
         hooks.insert(-1,LossEvalHook(
             self.cfg.TEST.EVAL_PERIOD,
             self.model,
-            build_detection_test_loader(self.cfg, SparseRCNNDatasetMapper(self.cfg, is_train=False))
+            build_detection_test_loader(self.cfg, self.cfg.DATASETS.TEST, SparseRCNNDatasetMapper(self.cfg))
         ))
         return hooks
 
@@ -158,7 +158,7 @@ def main(args):
     return trainer.train()
 
 def load_train_data():
-  dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
+  dir = '/content/drive/MyDrive/Data/DentexData/training_data/quadrant'
   images_dir = os.path.join(dir, 'xrays')
   train_file = 'quadrant_detectron_format_train.json'
   j = json.load(open(os.path.join(dir, train_file)))
@@ -167,7 +167,7 @@ def load_train_data():
   return j
 
 def load_val_data():
-  dir = '/content/drive/MyDrive/dentext/Data/DentexData/training_data/quadrant'
+  dir = '/content/drive/MyDrive/Data/DentexData/training_data/quadrant'
   images_dir = os.path.join(dir, 'xrays')
   val_file = 'quadrant_detectron_format_val.json'
   j = json.load(open(os.path.join(dir, val_file)))

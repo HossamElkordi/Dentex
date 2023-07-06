@@ -178,6 +178,8 @@ def load_val_data():
 if __name__ == "__main__":
     DatasetCatalog.register("Quadrant_train", load_train_data)
     DatasetCatalog.register("Quadrant_val", load_val_data)
+    MetadataCatalog.get("Quadrant_val").things_classes = ['2', '1', '3', '4']
+    MetadataCatalog.get("Quadrant_val").thing_classes = ['2', '1', '3', '4']
     args = default_argument_parser().parse_args()
     
     print("Command Line Args:", args)

@@ -109,9 +109,9 @@ class DynamicHead(nn.Module):
             bboxes = pred_bboxes.detach()
 
         if self.return_intermediate:
-            return torch.stack(inter_class_logits), torch.stack(inter_pred_bboxes)
+            return [torch.stack(icl) for icl in inter_class_logits], torch.stack(inter_pred_bboxes)
 
-        return class_logits[None], pred_bboxes[None]
+        return [cl[None] for cl in class_logits], pred_bboxes[None]
 
 
 class RCNNHead(nn.Module):
@@ -141,12 +141,15 @@ class RCNNHead(nn.Module):
 
         # cls.
         num_cls = cfg.MODEL.SparseRCNN.NUM_CLS
-        cls_module = list()
-        for _ in range(num_cls):
-            cls_module.append(nn.Linear(d_model, d_model, False))
-            cls_module.append(nn.LayerNorm(d_model))
-            cls_module.append(nn.ReLU(inplace=True))
-        self.cls_module = nn.ModuleList(cls_module)
+        self.cls_heads = list()
+        for _ in range(num_classes):
+            cls_module = list()
+            for _ in range(num_cls):
+                cls_module.append(nn.Linear(d_model, d_model, False))
+                cls_module.append(nn.LayerNorm(d_model))
+                cls_module.append(nn.ReLU(inplace=True))
+            cls_module = nn.ModuleList(cls_module)
+            self.cls_heads.append(cls_module)
 
         # reg.
         num_reg = cfg.MODEL.SparseRCNN.NUM_REG
@@ -159,10 +162,13 @@ class RCNNHead(nn.Module):
         
         # pred.
         self.use_focal = cfg.MODEL.SparseRCNN.USE_FOCAL
+        self.class_logits = list()
         if self.use_focal:
-            self.class_logits = nn.Linear(d_model, num_classes)
+            for nc in num_classes:
+                self.class_logits.append(nn.Linear(d_model, nc))
         else:
-            self.class_logits = nn.Linear(d_model, num_classes + 1)
+            for nc in num_classes:
+                self.class_logits.append(nn.Linear(d_model, nc + 1))
         self.bboxes_delta = nn.Linear(d_model, 4)
         self.scale_clamp = scale_clamp
         self.bbox_weights = bbox_weights
@@ -201,17 +207,27 @@ class RCNNHead(nn.Module):
         obj_features = self.norm3(obj_features)
         
         fc_feature = obj_features.transpose(0, 1).reshape(N * nr_boxes, -1)
-        cls_feature = fc_feature.clone()
+
+        cls_heads_features = list()
+        for cls_head in self.cls_heads:
+            cls_feature = fc_feature.clone()
+            for cls_layer in cls_head:
+                cls_feature = cls_layer(cls_feature)
+            cls_heads_features.append(cls_feature)
+            
+
         reg_feature = fc_feature.clone()
-        for cls_layer in self.cls_module:
-            cls_feature = cls_layer(cls_feature)
         for reg_layer in self.reg_module:
             reg_feature = reg_layer(reg_feature)
-        class_logits = self.class_logits(cls_feature)
+        
+        class_logits = list()
+        for i in range(len(self.class_logits)):
+            class_logits.append(self.class_logits[i](cls_heads_features[i]))
+
         bboxes_deltas = self.bboxes_delta(reg_feature)
         pred_bboxes = self.apply_deltas(bboxes_deltas, bboxes.view(-1, 4))
         
-        return class_logits.view(N, nr_boxes, -1), pred_bboxes.view(N, nr_boxes, -1), obj_features
+        return [logits.view(N, nr_boxes, -1) for logits in class_logits], pred_bboxes.view(N, nr_boxes, -1), obj_features
     
 
     def apply_deltas(self, deltas, boxes):

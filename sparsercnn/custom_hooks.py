@@ -62,7 +62,8 @@ class LossEvalHook(HookBase):
         return total_losses_reduced
     
     def before_train(self):
-        self.best_metric = 0.0
+        self.best_metric_ap = 0.0   # if resuming get the best value up to the used checkpoint
+        self.best_metric_ap50 = 0.0 # if resuming get the best value up to the used checkpoint
         self.logger = logging.getLogger("detectron2.trainer")
         self.logger.info("######## Running best check pointer")
 
@@ -77,7 +78,13 @@ class LossEvalHook(HookBase):
         
         if 'bbox/AP50' in self.trainer.storage._history:
             eval_metric, _ = self.trainer.storage.history('bbox/AP50')._data[-1]
-            if self.best_metric < eval_metric:
-                self.best_metric = eval_metric
-                self.logger.info(f"######## New best metric: {self.best_metric}")
-                self.trainer.checkpointer.save(f"model_best_{eval_metric:.4f}")
+            if self.best_metric_ap50 < eval_metric:
+                self.best_metric_ap50 = eval_metric
+                self.logger.info(f"######## New best metric: {self.best_metric_ap50}")
+                self.trainer.checkpointer.save(f"model_best_ap50")
+        if 'bbox/AP' in self.trainer.storage._history:
+            eval_metric, _ = self.trainer.storage.history('bbox/AP')._data[-1]
+            if self.best_metric_ap < eval_metric:
+                self.best_metric_ap = eval_metric
+                self.logger.info(f"######## New best metric: {self.best_metric_ap}")
+                self.trainer.checkpointer.save(f"model_best_ap")

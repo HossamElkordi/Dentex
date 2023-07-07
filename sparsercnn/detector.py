@@ -44,6 +44,7 @@ class SparseRCNN(nn.Module):
 
         self.in_features = cfg.MODEL.ROI_HEADS.IN_FEATURES
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES
+        self.cls_training = cfg.MODEL.SparseRCNN.MULTI_HEAD_TRAIN
         self.num_proposals = cfg.MODEL.SparseRCNN.NUM_PROPOSALS
         self.hidden_dim = cfg.MODEL.SparseRCNN.HIDDEN_DIM
         self.num_heads = cfg.MODEL.SparseRCNN.NUM_HEADS
@@ -97,6 +98,13 @@ class SparseRCNN(nn.Module):
         self.normalizer = lambda x: (x - pixel_mean) / pixel_std
         self.to(self.device)
 
+        for i in range(len(self.head.head_series)):
+            for is_trainable, head in zip(self.cls_training, self.head.head_series[i].cls_heads):
+                if is_trainable:
+                    continue
+                for param in head.parameters():
+                    param.requires_grad = False
+
 
     def forward(self, batched_inputs, do_postprocess=True):
         """
@@ -131,27 +139,39 @@ class SparseRCNN(nn.Module):
 
         # Prediction.
         outputs_class, outputs_coord = self.head(features, proposal_boxes, self.init_proposal_features.weight)
-        output = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        output = list()
+        for oc in outputs_class:
+            output.append({'pred_logits': oc[-1], 'pred_boxes': outputs_coord[-1]})
 
         if self.training:
             gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
             targets = self.prepare_targets(gt_instances)
+            labels = targets['labels']
             if self.deep_supervision:
-                output['aux_outputs'] = [{'pred_logits': a, 'pred_boxes': b}
-                                         for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
+                for i in range(len(output)):
+                    output[i]['aux_outputs'] = [{'pred_logits': a, 'pred_boxes': b}
+                                            for a, b in zip(outputs_class[i][:-1], outputs_coord[:-1])]
 
-            loss_dict = self.criterion(output, targets)
-            weight_dict = self.criterion.weight_dict
-            for k in loss_dict.keys():
-                if k in weight_dict:
-                    loss_dict[k] *= weight_dict[k]
-            return loss_dict
+            loss = {}
+            for i, (is_training, o) in enumerate(zip(self.cls_training, output)):
+                if not is_training:
+                    continue
+                targets['labels'] = torch.tensor([l[i] for l in labels])
+                loss_dict = self.criterion(o, targets)
+                weight_dict = self.criterion.weight_dict
+                for k in loss_dict.keys():
+                    if k in weight_dict:
+                        loss_dict[k] *= weight_dict[k]
+                    loss_dict[str(i) + '_' + k] = loss_dict[k]
+                    loss_dict.pop(k)
+                loss.update(loss_dict)
+            return loss
 
         else:
-            box_cls = output["pred_logits"]
+            box_cls = [o["pred_logits"] for o in output]
             box_pred = output["pred_boxes"]
-            results = self.inference(box_cls, box_pred, images.image_sizes)
-            
+            results = self.inference(box_cls, box_pred, images.image_sizes)[0] 
+            # a function should be add to remove normal class and and set the enumeration of the disease instances
             if do_postprocess:
                 processed_results = []
                 for results_per_image, input_per_image, image_size in zip(results, batched_inputs, images.image_sizes):
@@ -173,7 +193,7 @@ class SparseRCNN(nn.Module):
             gt_classes = targets_per_image.gt_classes
             gt_boxes = targets_per_image.gt_boxes.tensor / image_size_xyxy
             gt_boxes = box_xyxy_to_cxcywh(gt_boxes)
-            target["labels"] = gt_classes.to(self.device)
+            target["labels"] = torch.tensor(gt_classes).to(self.device)
             target["boxes"] = gt_boxes.to(self.device)
             target["boxes_xyxy"] = targets_per_image.gt_boxes.tensor.to(self.device)
             target["image_size_xyxy"] = image_size_xyxy.to(self.device)
@@ -187,7 +207,7 @@ class SparseRCNN(nn.Module):
     def inference(self, box_cls, box_pred, image_sizes):
         """
         Arguments:
-            box_cls (Tensor): tensor of shape (batch_size, num_proposals, K).
+            box_cls (List[Tensor]): list of tensors of shape (batch_size, num_proposals, K).
                 The tensor predicts the classification probability for each proposal.
             box_pred (Tensor): tensors of shape (batch_size, num_proposals, 4).
                 The tensor predicts 4-vector (x,y,w,h) box
@@ -197,41 +217,44 @@ class SparseRCNN(nn.Module):
         Returns:
             results (List[Instances]): a list of #images elements.
         """
-        assert len(box_cls) == len(image_sizes)
-        results = []
+        final_results = []
+        for cls_logits in box_cls:
+            assert len(cls_logits) == len(image_sizes)
+            results = []
 
-        if self.use_focal:
-            scores = torch.sigmoid(box_cls)
-            labels = torch.arange(self.num_classes, device=self.device).\
-                     unsqueeze(0).repeat(self.num_proposals, 1).flatten(0, 1)
+            if self.use_focal:
+                scores = torch.sigmoid(cls_logits)
+                labels = torch.arange(self.num_classes, device=self.device).\
+                        unsqueeze(0).repeat(self.num_proposals, 1).flatten(0, 1)
 
-            for i, (scores_per_image, box_pred_per_image, image_size) in enumerate(zip(
-                    scores, box_pred, image_sizes
-            )):
-                result = Instances(image_size)
-                scores_per_image, topk_indices = scores_per_image.flatten(0, 1).topk(self.num_proposals, sorted=False)
-                labels_per_image = labels[topk_indices]
-                box_pred_per_image = box_pred_per_image.view(-1, 1, 4).repeat(1, self.num_classes, 1).view(-1, 4)
-                box_pred_per_image = box_pred_per_image[topk_indices]
+                for i, (scores_per_image, box_pred_per_image, image_size) in enumerate(zip(
+                        scores, box_pred, image_sizes
+                )):
+                    result = Instances(image_size)
+                    scores_per_image, topk_indices = scores_per_image.flatten(0, 1).topk(self.num_proposals, sorted=False)
+                    labels_per_image = labels[topk_indices]
+                    box_pred_per_image = box_pred_per_image.view(-1, 1, 4).repeat(1, self.num_classes, 1).view(-1, 4)
+                    box_pred_per_image = box_pred_per_image[topk_indices]
 
-                result.pred_boxes = Boxes(box_pred_per_image)
-                result.scores = scores_per_image
-                result.pred_classes = labels_per_image
-                results.append(result)
+                    result.pred_boxes = Boxes(box_pred_per_image)
+                    result.scores = scores_per_image
+                    result.pred_classes = labels_per_image
+                    results.append(result)
 
-        else:
-            # For each box we assign the best class or the second best if the best on is `no_object`.
-            scores, labels = F.softmax(box_cls, dim=-1)[:, :, :-1].max(-1)
+            else:
+                # For each box we assign the best class or the second best if the best on is `no_object`.
+                scores, labels = F.softmax(cls_logits, dim=-1)[:, :, :-1].max(-1)
 
-            for i, (scores_per_image, labels_per_image, box_pred_per_image, image_size) in enumerate(zip(
-                scores, labels, box_pred, image_sizes
-            )):
-                result = Instances(image_size)
-                result.pred_boxes = Boxes(box_pred_per_image)
-                result.scores = scores_per_image
-                result.pred_classes = labels_per_image
-                results.append(result)
+                for i, (scores_per_image, labels_per_image, box_pred_per_image, image_size) in enumerate(zip(
+                    scores, labels, box_pred, image_sizes
+                )):
+                    result = Instances(image_size)
+                    result.pred_boxes = Boxes(box_pred_per_image)
+                    result.scores = scores_per_image
+                    result.pred_classes = labels_per_image
+                    results.append(result)
 
+            final_results.append(results)
         return results
 
     def preprocess_image(self, batched_inputs):

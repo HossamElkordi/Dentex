@@ -8,15 +8,15 @@ from detectron2.config import CfgNode as CN
 
 def add_dataset_config(cfg):
   cfg.DATASETS=CN()
-  cfg.DATASETS.TRAIN = ("Quadrant_train", )
-  cfg.DATASETS.TEST = ("Quadrant_val", )
+  cfg.DATASETS.TRAIN = ("Enumeration_train", )
+  cfg.DATASETS.TEST = ("Enumeration_val", )
 
 def add_sparsercnn_config(cfg):
     """
     Add config for SparseRCNN.
     """
     cfg.MODEL.SparseRCNN = CN()
-    cfg.MODEL.SparseRCNN.NUM_CLASSES = 4
+    cfg.MODEL.SparseRCNN.NUM_CLASSES = (8,)
     cfg.MODEL.SparseRCNN.NUM_PROPOSALS = 4
 
     # RCNN Head.
@@ -25,7 +25,7 @@ def add_sparsercnn_config(cfg):
     cfg.MODEL.SparseRCNN.DIM_FEEDFORWARD = 2048
     cfg.MODEL.SparseRCNN.ACTIVATION = 'relu'
     cfg.MODEL.SparseRCNN.HIDDEN_DIM = 256
-    cfg.MODEL.SparseRCNN.NUM_CLS = 1
+    cfg.MODEL.SparseRCNN.NUM_CLS = (1,)
     cfg.MODEL.SparseRCNN.NUM_REG = 3
     cfg.MODEL.SparseRCNN.NUM_HEADS = 6
 
@@ -45,6 +45,9 @@ def add_sparsercnn_config(cfg):
     cfg.MODEL.SparseRCNN.ALPHA = 0.25
     cfg.MODEL.SparseRCNN.GAMMA = 2.0
     cfg.MODEL.SparseRCNN.PRIOR_PROB = 0.01
+
+    # Training
+    cfg.MODEL.SparseRCNN.MULTI_HEAD_TRAIN = (True)
 
     # Optimizer.
     cfg.SOLVER.OPTIMIZER = "ADAMW"
